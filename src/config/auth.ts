@@ -40,6 +40,13 @@ declare global {
       ZITADEL_CLIENT_ID?: string;
       ZITADEL_CLIENT_SECRET?: string;
       ZITADEL_ISSUER?: string;
+
+      // Internal SSO
+      INTERNAL_SSO_CLIENT_ID?: string;
+      INTERNAL_SSO_CLIENT_SECRET?: string;
+      INTERNAL_SSO_ISSUER?: string;
+      INTERNAL_SSO_NAME?: string;
+      INTERNAL_SSO_SCOPE?: string;
     }
   }
 }
@@ -138,6 +145,21 @@ export const getAuthConfig = () => {
   if (process.env.ZITADEL_ISSUER) {
     console.warn(removeTipsTemplate('ZITADEL_ISSUER', 'AUTH_ZITADEL_ISSUER'));
   }
+  if (process.env.INTERNAL_SSO_CLIENT_ID) {
+    console.warn(removeTipsTemplate('INTERNAL_SSO_CLIENT_ID', 'AUTH_INTERNAL_SSO_ID'));
+  }
+  if (process.env.INTERNAL_SSO_CLIENT_SECRET) {
+    console.warn(removeTipsTemplate('INTERNAL_SSO_CLIENT_SECRET', 'AUTH_INTERNAL_SSO_SECRET'));
+  }
+  if (process.env.INTERNAL_SSO_ISSUER) {
+    console.warn(removeTipsTemplate('INTERNAL_SSO_ISSUER', 'AUTH_INTERNAL_SSO_ISSUER'));
+  }
+  if (process.env.INTERNAL_SSO_NAME) {
+    console.warn(removeTipsTemplate('INTERNAL_SSO_NAME', 'AUTH_INTERNAL_SSO_NAME'));
+  }
+  if (process.env.INTERNAL_SSO_SCOPE) {
+    console.warn(removeTipsTemplate('INTERNAL_SSO_SCOPE', 'AUTH_INTERNAL_SSO_SCOPE'));
+  }
   // End
 
   return createEnv({
@@ -207,6 +229,13 @@ export const getAuthConfig = () => {
 
       // Casdoor
       CASDOOR_WEBHOOK_SECRET: z.string().optional(),
+
+      // Internal SSO
+      INTERNAL_SSO_CLIENT_ID: z.string().optional(),
+      INTERNAL_SSO_CLIENT_SECRET: z.string().optional(),
+      INTERNAL_SSO_ISSUER: z.string().optional(),
+      INTERNAL_SSO_NAME: z.string().optional(),
+      INTERNAL_SSO_SCOPE: z.string().optional(),
     },
 
     runtimeEnv: {
@@ -269,6 +298,13 @@ export const getAuthConfig = () => {
 
       // Casdoor
       CASDOOR_WEBHOOK_SECRET: process.env.CASDOOR_WEBHOOK_SECRET,
+
+      // Internal SSO
+      INTERNAL_SSO_CLIENT_ID: process.env.INTERNAL_SSO_CLIENT_ID,
+      INTERNAL_SSO_CLIENT_SECRET: process.env.INTERNAL_SSO_CLIENT_SECRET,
+      INTERNAL_SSO_ISSUER: process.env.INTERNAL_SSO_ISSUER,
+      INTERNAL_SSO_NAME: process.env.INTERNAL_SSO_NAME,
+      INTERNAL_SSO_SCOPE: process.env.INTERNAL_SSO_SCOPE,
     },
   });
 };

@@ -10,6 +10,7 @@ import Google from './google';
 import Keycloak from './keycloak';
 import Logto from './logto';
 import MicrosoftEntraID from './microsoft-entra-id';
+import InternalSSO from './internal-sso'; // Added import for InternalSSO
 import WeChat from './wechat';
 import Zitadel from './zitadel';
 
@@ -28,4 +29,5 @@ export const ssoProviders = [
   WeChat,
   Keycloak,
   Google,
+  InternalSSO, // Added InternalSSO to the array
 ];

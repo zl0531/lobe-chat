@@ -1,79 +1,119 @@
 # New Authentication Provider Guide
 
-LobeChat uses [Auth.js v5](https://authjs.dev/) as the external authentication service. Auth.js is an open-source authentication library that provides a simple way to implement authentication and authorization features. This document will introduce how to use Auth.js to implement a new authentication provider.
+LobeChat uses [Auth.js (formerly NextAuth.js)](https://authjs.dev/) (specifically version 5 via `@auth/core`) as one of its external authentication service options. Auth.js is an open-source authentication library that provides a simple way to implement authentication and authorization features. This document will guide you through adding a new OAuth 2.0 / OIDC authentication provider to LobeChat.
+
+LobeChat has a modular system for NextAuth.js providers, making it straightforward to add new ones.
 
 ## Add New Authentication Provider
 
-To add a new authentication provider in LobeChat (for example, adding Okta), you need to follow the steps below:
+To add a new authentication provider in LobeChat, you generally need to follow these steps:
 
 ### Pre-requisites: Check the Official Provider List
 
-First, you need to check the [Auth.js Provider List](https://authjs.dev/reference/core/providers) to see if your provider is already supported. If yes, you can directly use the SDK provided by Auth.js to implement the authentication feature.
+First, check the [Auth.js Provider List](https://authjs.dev/reference/core/providers) to see if your provider is already officially supported by Auth.js.
+- If it is, you can import it directly from `@auth/core/providers/*` (e.g., `@auth/core/providers/github`).
+- If it's not, but it's a standard OAuth 2.0 / OIDC provider, you can configure it using the generic OIDC provider type.
 
-Next, I will use [Okta](https://authjs.dev/reference/core/providers/okta) as an example to introduce how to add a new authentication provider.
+### Step 1: Create a Provider Configuration File
 
-### Step 1: Add Authenticator Core Code
+1.  Navigate to the `src/libs/next-auth/sso-providers/` directory.
+2.  Create a new TypeScript file for your provider, e.g., `my-custom-sso.ts`.
+3.  In this file, define your provider configuration. You can use `generic-oidc.ts` or `internal-sso.ts` in the same directory as a template for OIDC-compliant providers.
 
-Open the `src/app/api/auth/next-auth.ts` file and import `next-auth/providers/okta`.
+   The basic structure should be:
 
-```ts
-import { NextAuth } from 'next-auth';
-import Auth0 from 'next-auth/providers/auth0';
-import Okta from 'next-auth/providers/okta';
+   ```typescript
+   import type { OAuthConfig, OIDCConfig } from '@auth/core/providers'; // Or specific provider type
+   import { authEnv } from '@/config/auth'; // For accessing environment variables
+   import { CommonProviderConfig } from './sso.config'; // Common settings
 
-// Import Okta provider
-```
+   // Define a profile type if needed, especially for custom claims
+   export type MyCustomSSOProfile = {
+     sub: string;
+     email: string;
+     name?: string;
+     picture?: string;
+     // any other fields your SSO provides and you want to map
+   };
 
-Add the predefined server configuration.
+   const providerId = 'my-custom-sso'; // This ID will be used in environment variables
 
-```ts
-// Import server configuration
-const { OKTA_CLIENT_ID, OKTA_CLIENT_SECRET, OKTA_ISSUER } = getServerConfig();
+   const myCustomSSOProvider = {
+     id: providerId,
+     provider: {
+       ...CommonProviderConfig, // Includes common settings like allowDangerousEmailAccountLinking
+       id: providerId,
+       name: 'My Custom SSO', // Display name on the login page
+       type: 'oidc', // or 'oauth' if not fully OIDC compliant in discovery
 
-const nextAuth = NextAuth({
-  providers: [
-    // ... Other providers
+       // Reference environment variables that you will define in src/config/auth.ts
+       // Use the AUTH_PROVIDER_ID_VARIABLE_NAME pattern for new variables
+       clientId: authEnv.MY_CUSTOM_SSO_CLIENT_ID ?? process.env.AUTH_MY_CUSTOM_SSO_ID,
+       clientSecret: authEnv.MY_CUSTOM_SSO_CLIENT_SECRET ?? process.env.AUTH_MY_CUSTOM_SSO_SECRET,
+       issuer: authEnv.MY_CUSTOM_SSO_ISSUER ?? process.env.AUTH_MY_CUSTOM_SSO_ISSUER, // For OIDC, often contains other endpoint URLs
 
-    Okta({
-      clientId: OKTA_CLIENT_ID,
-      clientSecret: OKTA_CLIENT_SECRET,
-      issuer: OKTA_ISSUER,
-    }),
-  ],
-});
-```
+       // For non-OIDC OAuth 2.0 providers, you might need to specify endpoints directly:
+       // authorization: { url: "https://sso.example.com/auth", params: { scope: "openid email profile" } },
+       // token: "https://sso.example.com/token",
+       // userinfo: "https://sso.example.com/userinfo",
 
-### Step 2: Update Server Configuration Code
+       // Crucial: Maps the profile data from SSO to LobeChat's user object
+       profile(profile: MyCustomSSOProfile) {
+         return {
+           id: profile.sub, // Must be unique
+           name: profile.name ?? profile.email,
+           email: profile.email,
+           image: profile.picture,
+           providerAccountId: profile.sub, // Store the original ID from provider
+         };
+       },
+       // Add any other provider-specific options here
+     } satisfies OIDCConfig<MyCustomSSOProfile>, // Or OAuthConfig, etc.
+   };
 
-Open the `src/config/server/app.ts` file and add Okta-related environment variables in the `getAppConfig` function.
+   export default myCustomSSOProvider;
+   ```
 
-```ts
-export const getAppConfig = () => {
-  // ... Other code
+### Step 2: Define Environment Variables
 
-  return {
-    // ... Other environment variables
+1.  Open `src/config/auth.ts`.
+2.  Declare the TypeScript interface for your new environment variables within `process.env` (e.g., `MY_CUSTOM_SSO_CLIENT_ID?: string;`).
+3.  Add these variables to the `server` schema in `createEnv({ ... })`.
+4.  Map them in the `runtimeEnv` object.
+5.  Optionally, add migration warnings if you're introducing new `AUTH_` prefixed versions.
+6.  Add these new environment variables to your `.env.example` file with explanations.
 
-    OKTA_CLIENT_ID: process.env.OKTA_CLIENT_ID || '',
-    OKTA_CLIENT_SECRET: process.env.OKTA_CLIENT_SECRET || '',
-    OKTA_ISSUER: process.env.OKTA_ISSUER || '',
-  };
-};
-```
+   Example snippet for `src/config/auth.ts` server schema:
+   ```typescript
+   // My Custom SSO
+   MY_CUSTOM_SSO_CLIENT_ID: z.string().optional(),
+   MY_CUSTOM_SSO_CLIENT_SECRET: z.string().optional(),
+   MY_CUSTOM_SSO_ISSUER: z.string().optional(),
+   ```
 
-### Step 3: Change Frontend Pages
+### Step 3: Register the Provider
 
-Modify the `signIn` function parameter in `src/Features/Conversation/Error/OAuthForm.tsx` and \`src/app/settings/common/Common.tsx
+1.  Open `src/libs/next-auth/sso-providers/index.ts`.
+2.  Import your new provider configuration: `import MyCustomSSO from './my-custom-sso';`.
+3.  Add it to the `ssoProviders` array: `export const ssoProviders = [..., MyCustomSSO];`.
 
-The default is `auth0`, which you can change to `okta` to switch to the Okta provider, or remove this parameter to support all added authentication services
+### Step 4: Add UI Icon (Optional)
 
-This value is the id of the Auth.js provider, and you can read the source code of the corresponding `next-auth/providers` module to read the default ID.
+If you want a custom icon for your provider on the sign-in page:
+1.  Open `src/components/NextAuth/AuthIcons.tsx`.
+2.  Import an icon component (e.g., from `@lobehub/icons` or your own SVG).
+3.  Add an entry to the `iconComponents` mapping: `'my-custom-sso': YourIconComponent,`.
+    If no icon is provided, it will use a default NextAuth icon.
 
-### Step 4: Configure the Environment Variables
+### Step 5: Enable and Configure via Environment Variables
 
-Add `OKTA_CLIENT_ID`、`OKTA_CLIENT_SECRET`、`OKTA_ISSUER` environment variables when you deploy.
+1.  In your `.env` file (or deployment environment variables):
+    *   Ensure `NEXT_PUBLIC_ENABLE_NEXT_AUTH=1` is set.
+    *   Set `NEXT_AUTH_SECRET`.
+    *   Add the `id` of your new provider (e.g., `my-custom-sso`) to the comma-separated `NEXT_AUTH_SSO_PROVIDERS` list.
+    *   Set the actual values for `AUTH_MY_CUSTOM_SSO_CLIENT_ID`, `AUTH_MY_CUSTOM_SSO_CLIENT_SECRET`, `AUTH_MY_CUSTOM_SSO_ISSUER`, etc.
 
-### Step 5: Modify server-side user information processing logic
+### Step 6: Server-Side User Information Processing
 
 #### Get user information in the frontend
 
@@ -96,88 +136,143 @@ interface User {
 }
 ```
 
-#### Modify user `id` handling logic
+#### Profile Mapping and User ID
 
-The `user.id` is used to identify users. When introducing a new OAuth identity provider, you need to handle the information carried in the OAuth callback in `src/app/api/auth/next-auth.ts`. You need to select the user's `id` from this information. Before that, we need to understand the data processing sequence of `Auth.js`:
+The `user.id` is used to uniquely identify users within LobeChat. The mapping of profile information from your SSO provider to LobeChat's user object occurs in the `profile` callback within your provider configuration file (e.g., `my-custom-sso.ts`, as created in Step 1).
 
-```txt
-authorize --> jwt --> session
-```
+Ensure your `profile` function correctly extracts a unique user identifier (commonly `sub` in OIDC) and maps it to the `id` field of the returned object. It should also map email, name, and image/picture if available.
 
-By default, in the `jwt --> session` process, `Auth.js` will [automatically assign the user `id` to `account.providerAccountId` based on the login type](https://authjs.dev/reference/core/types#provideraccountid). If you need to select a different value as the user `id`, you need to implement the following handling logic:
+Auth.js processes authentication data in a sequence like: `authorize --> jwt --> session`.
 
-```ts
-callbacks: {
-  async jwt({ token, account, profile }) {
-    if (account) {
-      // You can select a different value from `account` or `profile`
-      token.userId = account.providerAccountId;
-    }
-    return token;
-  },
-},
-```
+The `profile` callback is invoked early in this process. The standard NextAuth.js callbacks for `jwt` and `session` are defined in `src/libs/next-auth/auth.config.ts`:
 
-#### Customize `session` return
-
-If you want to carry more information about `profile` and `account` in the `session`, according to the data processing order mentioned above in `Auth.js`, you must first copy this information to the `token`. For example, add the user avatar URL `profile.picture` to the `session`:
-
-```diff
+```typescript
+// Example from src/libs/next-auth/auth.config.ts
+export default {
   callbacks: {
-    async jwt({ token, profile, account }) {
-      if (profile && account) {
-        token.userId = account.providerAccountId;
-+       token.avatar = profile.picture;
+    async jwt({ token, user }) {
+      // The `user` object here is typically the output of your provider's `profile` function
+      // or the user object from your database if using an adapter.
+      if (user?.id) {
+        token.userId = user.id;
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token, user }) {
+      // `token` contains data from the `jwt` callback.
+      // `user` might be from the database adapter if used.
       if (session.user) {
-        session.user.id = token.userId ?? session.user.id;
-+       session.user.avatar = token.avatar;
+        if (user?.id) { // Prefer user from adapter if available
+          session.user.id = user.id;
+        } else if (token?.userId) { // Fallback to userId from JWT
+          session.user.id = token.userId as string;
+        }
       }
       return session;
     },
   },
+  // ... other configurations
+} satisfies NextAuthConfig;
 ```
+These callbacks ensure the `userId` (derived from your `profile` function's `id` field) is propagated to the JWT and then to the session object available in the frontend.
 
-Then supplement the type definition for the new parameters:
+#### Customizing JWT and Session Data
 
-```ts
-declare module '@auth/core/jwt' {
-  interface JWT {
-    // ...
-    avatar?: string;
-  }
-}
+If you need to carry more information from the SSO profile into the LobeChat session beyond what's on the standard `User` object:
 
-declare module 'next-auth' {
-  interface User {
-    avatar?: string;
-  }
-}
-```
+1.  **In your provider's `profile` function (Step 1):** Include any additional fields from the original SSO profile in the object returned by your `profile` function. For example:
+    ```typescript
+    // In src/libs/next-auth/sso-providers/my-custom-sso.ts
+    profile(profile: MyCustomSSOProfile) {
+      return {
+        id: profile.sub,
+        name: profile.name,
+        email: profile.email,
+        image: profile.picture,
+        customField: profile.custom_claim_from_sso, // Add custom fields here
+        providerAccountId: profile.sub,
+      };
+    }
+    ```
 
-> [More built-in type extensions in Auth.js](https://authjs.dev/getting-started/typescript#module-augmentation)
-
-#### Differentiate multiple authentication providers in the processing logic
-
-If you have configured multiple authentication providers and their `userId` mappings are different, you can use the `account.provider` parameter in the `jwt` method to get the default id of the identity provider and enter different processing logic.
-
-```ts
-  callbacks: {
-    async jwt({ token, profile, account }) {
-      if (profile && account) {
-        if (account.provider === 'authing')
-          token.userId = account.providerAccountId ?? token.sub;
-        else if (acount.provider === 'auth0')
-          token.userId = profile.sub ?? token.sub;
-        else
-          // other providers
+2.  **Update JWT callback in `src/libs/next-auth/auth.config.ts`:** If you added custom fields to the user object returned by `profile`, they should be available on the `user` parameter in the `jwt` callback. You can then add them to the `token`.
+    ```typescript
+    // In src/libs/next-auth/auth.config.ts
+    async jwt({ token, user, account, profile }) { // `user` is key here
+      if (user) {
+        token.userId = user.id;
+        // If `customField` was part of the `user` object from the profile function:
+        // token.customField = user.customField;
       }
       return token;
-    },
+    }
+    ```
+    *(Note: `account` and `profile` are also available in `jwt` if needed for more complex scenarios, but `user` usually contains the processed profile data).*
+
+3.  **Update Session callback in `src/libs/next-auth/auth.config.ts`:** Transfer the custom fields from the `token` to the `session.user` object.
+    ```typescript
+    // In src/libs/next-auth/auth.config.ts
+    async session({ session, token }) {
+      if (session.user && token.userId) {
+        session.user.id = token.userId as string;
+        // if (token.customField) {
+        //   session.user.customField = token.customField;
+        // }
+      }
+      return session;
+    }
+    ```
+
+4.  **TypeScript Augmentation**: To make TypeScript aware of these new fields on the `session.user`, `token`, or even the initial `User` object, you'll need to augment the NextAuth.js types. Create or update a type definition file (e.g., `src/types/next-auth.d.ts`):
+    ```typescript
+    import 'next-auth';
+    import 'next-auth/jwt';
+
+    declare module 'next-auth' {
+      // Extends the built-in User model
+      interface User {
+        // customField?: any; // If you want to type it on the User object itself
+      }
+
+      // Extends the built-in Session model
+      interface Session {
+        user: {
+          id: string; // Already there by default from NextAuth if session.user exists
+          // customField?: any; // Add your custom field to the session's user object
+        } & User; // Keep existing User fields from NextAuth
+      }
+    }
+
+    declare module 'next-auth/jwt' {
+      // Extends the built-in JWT model
+      interface JWT {
+        userId?: string; // Already added by LobeChat's default config
+        // customField?: any; // Add your custom field to the JWT token
+      }
+    }
+    ```
+    Refer to the [Auth.js TypeScript guide](https://authjs.dev/getting-started/typescript#module-augmentation) for more details.
+
+#### Differentiating Multiple Authentication Providers in Callbacks
+
+The current modular setup in `src/libs/next-auth/sso-providers/` means each provider has its own dedicated `profile` function. This is the primary place for provider-specific data mapping.
+
+The generic `jwt` and `session` callbacks in `src/libs/next-auth/auth.config.ts` are designed to work with the (now potentially customized) user object that your provider's `profile` function returns.
+
+If you absolutely needed to differentiate logic within the shared `jwt` callback based on which provider initiated the sign-in, the `account.provider` property (available in the `jwt` callback when an `account` object is passed) could be used. However, this is generally less clean than handling provider-specifics within its own `profile` function.
+
+```typescript
+// Example: Conditional logic in jwt callback (generally try to avoid if mapping can be done in profile)
+async jwt({ token, user, account }) {
+  if (user) token.userId = user.id;
+
+  if (account?.provider === 'my-custom-sso') {
+    // Logic specific to 'my-custom-sso'
+  } else if (account?.provider === 'another-provider') {
+    // Logic specific to 'another-provider'
   }
+  return token;
+}
 ```
 
-Now, you can use Okta as your provider to implement the authentication feature in LobeChat.
+With these steps, you should be able to integrate and customize new authentication providers effectively in LobeChat.

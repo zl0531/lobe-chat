@@ -22,6 +22,7 @@ const iconComponents: { [key: string]: React.ElementType } = {
   'default': NextAuth.Color,
   'github': Github,
   'google': Google.Color,
+  'internal-sso': NextAuth.Color, // Added icon for Internal SSO
   'logto': Logto.Color,
   'microsoft-entra-id': MicrosoftEntra.Color,
   'zitadel': Zitadel.Color,
