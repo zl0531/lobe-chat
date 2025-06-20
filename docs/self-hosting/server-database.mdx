@@ -91,12 +91,27 @@ Since we support file-based conversations/knowledge base conversations, we need 
 
   ### `KEY_VAULTS_SECRET`
 
-  Considering that users will store sensitive information such as their API Key and baseURL in the database, we need a key to encrypt this information to prevent leakage in case of a database breach. Hence, the `KEY_VAULTS_SECRET` environment variable is used to encrypt sensitive information like user-stored apikeys.
+  The `KEY_VAULTS_SECRET` is a **critical** environment variable used to derive the encryption key for securing sensitive data stored in the LobeChat database. This key is essential for protecting data from unauthorized access, especially in the event of a database breach.
+
+  **This key encrypts:**
+  - User-provided API keys and custom LLM provider base URLs.
+  - Core LobeChat conversation data, including:
+    - Chat message content.
+    - Topic titles and history summaries.
+    - Session titles and descriptions.
+    - Arguments passed to plugins and other sensitive text fields within the chat functionality.
+
+  **Important Considerations:**
+  - **Strength and Secrecy:** This key must be a strong, random string. It is vital to keep this key secret and manage it securely, like any other critical credential.
+  - **Backup:** You **must** back up this key securely. If the `KEY_VAULTS_SECRET` is lost, all encrypted data will be unrecoverable.
+  - **Immutability:** Once LobeChat is deployed and data has been encrypted with this key, **do not change it**. Changing the `KEY_VAULTS_SECRET` on an existing deployment will render all previously encrypted data undecipherable. If key rotation is ever necessary, it would require a carefully planned data migration process using both the old and new keys to re-encrypt the data.
 
   <Callout type={'info'}>
-    You can generate a random 32-character string as the value of `KEY_VAULTS_SECRET` using `openssl
-                                                      rand -base64 32`.
+    It is recommended to use a 32-byte random string, base64 encoded, for this key. You can generate a suitable key using the command:
+    `openssl rand -base64 32`
   </Callout>
+
+  For more details on how LobeChat uses this key for at-rest encryption of sensitive data, including chat messages, please see the [Database Encryption](/docs/self-hosting/advanced/database-encryption) documentation.
 </Steps>
 
 ## Configuring Authentication Services
