@@ -116,3 +116,60 @@ export default ChatPage;
 ```
 
 The above is the step to implement the "chat message" feature in LobeChat. Of course, in the actual development of LobeChat, the business requirements and scenarios faced in real situations are far more complex than the above demo. Please develop according to the actual situation.
+
+## Performance Considerations for Frontend Development
+
+When developing new features, especially UI components, it's crucial to keep application performance in mind to ensure a smooth user experience. Large JavaScript bundles can significantly slow down initial page loads and interactivity.
+
+### 1. Ant Design (AntD) Component Imports
+
+Ant Design is a powerful UI library, but importing components incorrectly can lead to unnecessarily large bundles if tree-shaking is not effective.
+
+- **Prefer Direct Imports:** Instead of importing multiple components from the top-level `antd` package like this:
+  ```jsx
+  // Avoid this if bundle size becomes an issue:
+  import { Button, Input, List, Typography } from 'antd';
+  ```
+  It's generally safer for bundle optimization to use direct, specific imports for each component:
+  ```jsx
+  // Recommended:
+  import Button from 'antd/es/button';
+  import Input from 'antd/es/input';
+  import List from 'antd/es/list';
+  import Typography from 'antd/es/typography';
+  // And if not using a global antd CSS reset (like antd/dist/reset.css), import component styles:
+  // import 'antd/es/button/style';
+  // import 'antd/es/input/style';
+  // ...etc.
+  ```
+  Modern Next.js with SWC is good at tree-shaking, but for a library as large as AntD, direct imports provide a more explicit way to ensure only what's needed is bundled, especially if you encounter performance bottlenecks related to AntD's bundle size.
+
+### 2. Lazy Loading Non-Critical Components with `next/dynamic`
+
+Components or features that are not immediately required for the initial view should be lazy-loaded. This helps reduce the initial JavaScript payload and improves perceived performance.
+
+- **Modals, Complex UI Sections, Heavy Libraries:** Any component that isn't visible on first load, or libraries that are only used for specific interactions, are good candidates.
+  ```jsx
+  import dynamic from 'next/dynamic';
+
+  // Lazy load a modal component
+  const MyFeatureModal = dynamic(() => import('@/features/MyFeatureModal/MyFeatureModal'));
+
+  // Lazy load a component that uses a heavy library
+  const DataHeavyComponent = dynamic(() => import('@/components/DataHeavyComponent'), {
+    loading: () => <p>Loading component...</p>, // Optional loading state
+    ssr: false, // Often useful for client-side only components or libraries
+  });
+
+  // Usage:
+  // {showModal && <MyFeatureModal />}
+  // {showDataHeavyComponent && <DataHeavyComponent />}
+  ```
+
+### 3. Analyze Your Bundles
+
+Regularly analyze your application's JavaScript bundles, especially after adding new dependencies or features. Next.js has built-in support for bundle analysis.
+  - Run `ANALYZE=true pnpm build` (or `npm run build:analyze`).
+  - This will generate a report showing what's inside your JavaScript chunks, helping you identify large modules or incorrectly bundled dependencies.
+
+By keeping these considerations in mind, you can help maintain a performant and responsive LobeChat application.
